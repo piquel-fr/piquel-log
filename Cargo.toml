@@ -10,6 +10,21 @@ homepage = "https://piquel.fr" # TODO: should piquel.fr/piqueld of dirkengine.fr
 authors = ["Piquel <contact@piquel.fr>"]
 
 [dependencies]
+log = { version = "0.4", optional = true }
+
+[features]
+default = []
+
+# All the features
+full = ["store", "file"]
+
+# Add the LogStore, for storing & querying of logs
+store = []
+# Will save logs to file, can be configured
+file = []
+
+# Will convert `log` events to tracing events
+log = ["dep:log"]
 
 [lints.rust]
 unsafe_code = "forbid"
