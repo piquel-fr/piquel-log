@@ -11,6 +11,14 @@ authors = ["Piquel <contact@piquel.fr>"]
 
 [dependencies]
 
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = "warn"
+unwrap_used = "warn"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
