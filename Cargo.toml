@@ -10,3 +10,7 @@ homepage = "https://piquel.fr" # TODO: should piquel.fr/piqueld of dirkengine.fr
 authors = ["Piquel <contact@piquel.fr>"]
 
 [dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
