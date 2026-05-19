@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+
+# Cancel any in-progress run on the same branch when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-${{ matrix.os }}"
+
+      - name: cargo check (default features)
+        run: cargo check --workspace --locked
+
+      - name: cargo check (no default features)
+        run: cargo check --workspace --locked --no-default-features
+
+      - name: cargo check (all features)
+        run: cargo check --workspace --locked --all-features
+
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-${{ matrix.os }}"
+
+      - name: Build debug
+        run: cargo build --workspace --locked
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-${{ matrix.os }}"
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Test
+        run: cargo nextest run --workspace --locked
