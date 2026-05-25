@@ -67,6 +67,26 @@
 //! - target allowlists or message filters
 //! - file rotation or retention policies
 //! - exposing individual internal sink/layer types
+//!
+//! # Runtime backend updates
+//!
+//! A [`Logger`] can keep the same backend layer attached while adding new
+//! sinks later. For example, a file backend can be added after startup:
+//!
+//! ```rust
+//! # #[cfg(feature = "file")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use piquel_log::{FileConfig, Logger};
+//!
+//! let logger = Logger::new();
+//! logger.init()?;
+//! logger.add_file_backend(FileConfig::new("logs"))?;
+//! tracing::info!("also written to the file backend");
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "file"))]
+//! # fn main() {}
+//! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -105,10 +125,15 @@ pub use crate::config::FileConfig;
 /// `LogLevel::Warn` keeps `Error` and `Warn` (both ≤ `Warn` in severity).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LogLevel {
+    /// Error conditions that usually require immediate attention.
     Error = 0,
+    /// Warning conditions that may need investigation.
     Warn = 1,
+    /// Normal operational information.
     Info = 2,
+    /// Verbose diagnostic information for development.
     Debug = 3,
+    /// The most detailed diagnostic information.
     Trace = 4,
 }
 

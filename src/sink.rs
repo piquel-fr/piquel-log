@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /// Rendering configuration shared by all sinks.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FormatterConfig {
@@ -11,6 +13,8 @@ pub(crate) struct FormatterConfig {
 pub(crate) struct FormattedEvent {
     pub(crate) line: String,
 }
+
+pub(crate) type SharedSink = Arc<dyn Sink>;
 
 pub(crate) trait Sink: Send + Sync {
     fn write(&self, event: &FormattedEvent);
