@@ -119,8 +119,8 @@ impl Logger {
             timestamp: self.timestamp,
         };
 
-        let mut sinks = Vec::new();
-        sinks.push(Box::new(ConsoleSink) as _);
+        #[allow(unused_mut)]
+        let mut sinks = vec![Box::new(ConsoleSink) as _];
 
         #[cfg(feature = "file")]
         if let Some(file) = self.file {
