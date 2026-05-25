@@ -14,4 +14,8 @@ pub(crate) struct FormattedEvent {
 
 pub(crate) trait Sink: Send + Sync {
     fn write(&self, event: &FormattedEvent);
+
+    fn formatter_config(&self, base: FormatterConfig) -> FormatterConfig {
+        base
+    }
 }

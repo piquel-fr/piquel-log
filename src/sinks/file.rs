@@ -72,6 +72,14 @@ impl FileSink {
 }
 
 impl Sink for FileSink {
+    fn formatter_config(
+        &self,
+        mut base: crate::sink::FormatterConfig,
+    ) -> crate::sink::FormatterConfig {
+        base.ansi = false;
+        base
+    }
+
     fn write(&self, event: &FormattedEvent) {
         if let Ok(mut writers) = self.writers.lock() {
             let _ = writeln!(writers.latest, "{}", event.line);

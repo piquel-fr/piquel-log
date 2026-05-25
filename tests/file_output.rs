@@ -56,10 +56,18 @@ fn file_sink_writes_latest_and_session_files() {
 
     let latest_contents = fs::read_to_string(&latest).expect("latest.log should be readable");
     assert!(latest_contents.contains("written to files code=7"));
+    assert!(
+        !latest_contents.contains("\u{1b}["),
+        "latest.log should not contain ANSI escape sequences"
+    );
 
     let session_contents =
         fs::read_to_string(session_files[0]).expect("session file should be readable");
     assert!(session_contents.contains("written to files code=7"));
+    assert!(
+        !session_contents.contains("\u{1b}["),
+        "session log should not contain ANSI escape sequences"
+    );
 
     let _ = fs::remove_dir_all(directory);
 }

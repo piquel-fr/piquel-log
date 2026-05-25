@@ -24,8 +24,9 @@ where
     S: Subscriber,
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        let rendered = format_event(event, OffsetDateTime::now_utc(), self.formatter);
+        let timestamp = OffsetDateTime::now_utc();
         for sink in &self.sinks {
+            let rendered = format_event(event, timestamp, sink.formatter_config(self.formatter));
             sink.write(&rendered);
         }
     }
