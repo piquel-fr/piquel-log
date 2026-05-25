@@ -112,6 +112,7 @@ impl Logger {
     /// # Errors
     ///
     /// Returns [`BuildError`] when an optional sink cannot be constructed.
+    #[must_use]
     pub fn build(self) -> Result<BackendLayer, BuildError> {
         let formatter = FormatterConfig {
             ansi: self.ansi,
