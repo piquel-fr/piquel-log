@@ -1,6 +1,7 @@
 use tracing_subscriber::{Registry, filter::LevelFilter, prelude::*, util::SubscriberInitExt};
 
 use crate::{
+    LogLevel,
     error::{BuildError, InitError},
     layer::BackendLayer,
     sink::FormatterConfig,
@@ -14,7 +15,7 @@ use crate::sinks::file::{FileSink, validate_file_config};
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct Logger {
-    max_level: LevelFilter,
+    max_level: LogLevel,
     ansi: bool,
     target: bool,
     timestamp: bool,
@@ -27,7 +28,7 @@ pub struct Logger {
 impl Default for Logger {
     fn default() -> Self {
         Self {
-            max_level: LevelFilter::INFO,
+            max_level: LogLevel::Info,
             ansi: true,
             target: true,
             timestamp: true,
@@ -56,7 +57,7 @@ impl Logger {
 
     /// Set the global maximum level applied during [`Self::init`].
     #[must_use]
-    pub fn with_max_level(mut self, level: LevelFilter) -> Self {
+    pub fn with_max_level(mut self, level: LogLevel) -> Self {
         self.max_level = level;
         self
     }
@@ -145,7 +146,7 @@ impl Logger {
         #[cfg(feature = "log")]
         let log_bridge = self.log_bridge;
 
-        let layer = self.build().map_err(InitError::Build)?;
+        let layer = self.build()?;
 
         #[cfg(feature = "log")]
         if log_bridge {
@@ -153,7 +154,7 @@ impl Logger {
         }
 
         Registry::default()
-            .with(max_level)
+            .with(LevelFilter::from(max_level))
             .with(layer)
             .try_init()
             .map_err(|_| InitError::AlreadyInitialized)

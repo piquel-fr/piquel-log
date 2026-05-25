@@ -19,10 +19,7 @@ impl BackendLayer {
     }
 }
 
-impl<S> Layer<S> for BackendLayer
-where
-    S: Subscriber,
-{
+impl<S: Subscriber> Layer<S> for BackendLayer {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         let timestamp = OffsetDateTime::now_utc();
         for sink in &self.sinks {
