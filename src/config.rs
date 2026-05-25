@@ -236,6 +236,7 @@ impl Logger {
         Ok(())
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn build_sink(spec: &BackendSpec) -> Result<crate::sink::SharedSink, BuildError> {
         Ok(match spec {
             BackendSpec::Console => Arc::new(ConsoleSink),
