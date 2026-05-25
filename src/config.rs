@@ -11,6 +11,7 @@ use crate::{
 use crate::sinks::file::{FileSink, validate_file_config};
 
 /// Builder for constructing and installing the crate's tracing backend.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct Logger {
     max_level: LevelFilter,
@@ -119,12 +120,12 @@ impl Logger {
         };
 
         let mut sinks = Vec::new();
-        sinks.push(Box::new(ConsoleSink::default()) as _);
+        sinks.push(Box::new(ConsoleSink) as _);
 
         #[cfg(feature = "file")]
         if let Some(file) = self.file {
             validate_file_config(&file)?;
-            sinks.push(Box::new(FileSink::new(file)?) as _);
+            sinks.push(Box::new(FileSink::new(&file)?) as _);
         }
 
         Ok(BackendLayer::new(formatter, sinks))

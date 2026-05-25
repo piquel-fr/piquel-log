@@ -47,12 +47,12 @@ struct FileWriters {
 }
 
 impl FileSink {
-    pub(crate) fn new(config: FileConfig) -> Result<Self, BuildError> {
+    pub(crate) fn new(config: &FileConfig) -> Result<Self, BuildError> {
         std::fs::create_dir_all(&config.directory)?;
 
         let now = OffsetDateTime::now_utc();
-        let latest_path = latest_path(&config);
-        let session_path = session_path(&config, now);
+        let latest_path = latest_path(config);
+        let session_path = session_path(config, now);
 
         let latest = OpenOptions::new()
             .create(true)

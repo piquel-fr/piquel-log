@@ -3,7 +3,6 @@ use std::io::Write;
 use crate::sink::{FormattedEvent, Sink};
 
 /// Console output sink.
-#[derive(Debug, Default)]
 pub(crate) struct ConsoleSink;
 
 impl Sink for ConsoleSink {
