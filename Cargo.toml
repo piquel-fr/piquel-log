@@ -10,11 +10,10 @@ homepage = "https://piquel.fr" # TODO: should piquel.fr/piqueld of dirkengine.fr
 authors = ["Piquel <contact@piquel.fr>"]
 
 [dependencies]
-anyhow = "1"
 thiserror = "2"
 time = { version = "0.3", features = ["formatting", "macros"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "registry"] }
 log = { version = "0.4", optional = true }
 tracing-log = { version = "0.2", optional = true, features = ["log-tracer", "std"] }
 
