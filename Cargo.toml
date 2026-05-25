@@ -16,20 +16,19 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 log = { version = "0.4", optional = true }
+tracing-log = { version = "0.2", optional = true, features = ["log-tracer", "std"] }
 
 [features]
 default = []
 
-# All the features
-full = ["store", "file"]
+# All optional backends
+full = ["file", "log"]
 
-# Add the LogStore, for storing & querying of logs
-store = []
-# Will save logs to file, can be configured
+# Save logs to file, configurable at runtime.
 file = []
 
-# Will convert `log` events to tracing events
-log = ["dep:log"]
+# Convert `log` events to tracing events.
+log = ["dep:log", "dep:tracing-log"]
 
 [lints.rust]
 unsafe_code = "forbid"
