@@ -81,6 +81,8 @@ pub use crate::config::Logger;
 pub use crate::error::{BuildError, InitError};
 pub use crate::layer::BackendLayer;
 
+pub use tracing_subscriber::filter::LevelFilter as LogLevel;
+
 #[cfg(feature = "file")]
 #[cfg_attr(docsrs, doc(cfg(feature = "file")))]
 pub use crate::config::FileConfig;
