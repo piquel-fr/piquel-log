@@ -13,6 +13,8 @@ use crate::{
 #[cfg(feature = "file")]
 use crate::sinks::file::{FileSink, validate_file_config};
 
+/// If you want to add a backend to the library, add it to this enum.
+/// The compiler will tell you what you need to updated.
 #[derive(Debug, Clone)]
 enum BackendSpec {
     Console,
