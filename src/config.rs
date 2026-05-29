@@ -51,7 +51,7 @@ impl Default for LoggerState {
 }
 
 /// Builder and runtime handle for the crate's tracing backend.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Logger {
     state: Arc<Mutex<LoggerState>>,
     sinks: Arc<SinkRegistry>,
@@ -68,15 +68,6 @@ impl std::fmt::Debug for Logger {
             .field("backend_specs", &state.backend_specs)
             .field("realized_backends", &state.realized_backends)
             .finish_non_exhaustive()
-    }
-}
-
-impl Default for Logger {
-    fn default() -> Self {
-        Self {
-            state: Arc::new(Mutex::new(LoggerState::default())),
-            sinks: Arc::new(SinkRegistry::default()),
-        }
     }
 }
 
