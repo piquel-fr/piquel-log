@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 use tracing_subscriber::{Registry, filter::LevelFilter, prelude::*, util::SubscriberInitExt};
 
@@ -245,17 +246,12 @@ impl Logger {
     }
 
     fn update_state(&self, update: impl FnOnce(&mut LoggerState)) {
-        match self.state.lock() {
-            Ok(mut state) => update(&mut state),
-            Err(poisoned) => update(&mut poisoned.into_inner()),
-        }
+        let mut state = self.state.lock();
+        update(&mut state);
     }
 
-    fn lock_state(&self) -> std::sync::MutexGuard<'_, LoggerState> {
-        match self.state.lock() {
-            Ok(state) => state,
-            Err(poisoned) => poisoned.into_inner(),
-        }
+    fn lock_state(&self) -> parking_lot::MutexGuard<'_, LoggerState> {
+        self.state.lock()
     }
 }
 
