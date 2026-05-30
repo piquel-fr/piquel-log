@@ -2,8 +2,9 @@
 //!
 //! `piquel-log` is intended for applications that want a straightforward
 //! way to install a `tracing` backend without exposing a large custom API.
-//! The crate always supports console output and can optionally support file
-//! output and `log` crate interoperability behind Cargo features.
+//! The crate enables console output by default, allows the console sink to be
+//! disabled, and can optionally support file output and `log` crate
+//! interoperability behind Cargo features.
 //!
 //! # Quick start
 //!
@@ -13,6 +14,17 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! Logger::new().init()?;
 //! tracing::info!("hello from tracing");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Disable console output
+//!
+//! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use piquel_log::Logger;
+//!
+//! Logger::new().with_console(false).init()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -57,7 +69,9 @@
 //! # Feature matrix
 //!
 //! - default: console backend only
+//! - `Logger::with_console(false)`: disable the console sink
 //! - `file`: configurable file output
+//! - `Logger::add_file_backend(...)`: add a file backend at runtime
 //! - `log`: explicit `log` to `tracing` bridge during `init`
 //! - `full`: enables `file` and `log`
 //!
@@ -121,7 +135,7 @@ pub use crate::config::FileConfig;
 /// assert!(LogLevel::Debug < LogLevel::Trace);
 /// ```
 ///
-/// This ordering is what powers [`Filter::min_level`]: passing
+/// This ordering is what powers level-threshold filtering: passing
 /// `LogLevel::Warn` keeps `Error` and `Warn` (both ≤ `Warn` in severity).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LogLevel {
