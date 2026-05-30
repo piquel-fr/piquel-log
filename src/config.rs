@@ -6,7 +6,7 @@ use tracing_subscriber::{Registry, filter::LevelFilter, prelude::*, util::Subscr
 use crate::{
     LogLevel,
     error::{BuildError, InitError},
-    layer::{BackendLayer, SinkRegistry},
+    layer::{BackendId, BackendLayer, SinkRegistry},
     sink::FormatterConfig,
     sinks::console::ConsoleSink,
 };
@@ -17,10 +17,16 @@ use crate::sinks::file::{FileSink, validate_file_config};
 /// If you want to add a backend to the library, add it to this enum.
 /// The compiler will tell you what you need to updated.
 #[derive(Debug, Clone)]
-enum BackendSpec {
+enum BackendKind {
     Console,
     #[cfg(feature = "file")]
     File(FileConfig),
+}
+
+#[derive(Debug, Clone)]
+struct BackendSpec {
+    id: BackendId,
+    kind: BackendKind,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -31,7 +37,7 @@ struct LoggerState {
     target: bool,
     timestamp: bool,
     backend_specs: Vec<BackendSpec>,
-    realized_backends: usize,
+    next_backend_id: BackendId,
     #[cfg(feature = "log")]
     log_bridge: bool,
 }
@@ -43,8 +49,11 @@ impl Default for LoggerState {
             ansi: true,
             target: true,
             timestamp: true,
-            backend_specs: vec![BackendSpec::Console],
-            realized_backends: 0,
+            backend_specs: vec![BackendSpec {
+                id: 0,
+                kind: BackendKind::Console,
+            }],
+            next_backend_id: 1,
             #[cfg(feature = "log")]
             log_bridge: false,
         }
@@ -67,7 +76,7 @@ impl std::fmt::Debug for Logger {
             .field("target", &state.target)
             .field("timestamp", &state.timestamp)
             .field("backend_specs", &state.backend_specs)
-            .field("realized_backends", &state.realized_backends)
+            .field("next_backend_id", &state.next_backend_id)
             .finish_non_exhaustive()
     }
 }
@@ -77,6 +86,7 @@ impl Logger {
     ///
     /// Defaults:
     /// - max level: `INFO`
+    /// - console output: enabled
     /// - ANSI colors: enabled
     /// - timestamps: enabled
     /// - targets: enabled
@@ -91,6 +101,15 @@ impl Logger {
     #[must_use]
     pub fn with_max_level(self, level: LogLevel) -> Self {
         self.update_state(|state| state.max_level = level);
+        self
+    }
+
+    /// Enable or disable the console sink.
+    ///
+    /// Disabling the console sink removes it from the live backend stack.
+    #[must_use]
+    pub fn with_console(self, enabled: bool) -> Self {
+        self.set_console_enabled(enabled);
         self
     }
 
@@ -121,7 +140,7 @@ impl Logger {
     #[cfg_attr(docsrs, doc(cfg(feature = "file")))]
     #[must_use]
     pub fn with_file(self, config: FileConfig) -> Self {
-        self.update_state(|state| state.backend_specs.push(BackendSpec::File(config)));
+        self.stage_backend(BackendKind::File(config));
         self
     }
 
@@ -137,14 +156,9 @@ impl Logger {
     #[cfg(feature = "file")]
     #[cfg_attr(docsrs, doc(cfg(feature = "file")))]
     pub fn add_file_backend(&self, config: FileConfig) -> Result<(), BuildError> {
-        let sink = Self::build_file_sink(&config)?;
-
-        self.update_state(|state| {
-            state.backend_specs.push(BackendSpec::File(config));
-            state.realized_backends += 1;
-        });
-        self.sinks.push(Arc::new(sink));
-
+        let sink = Arc::new(Self::build_file_sink(&config)?);
+        let backend_id = self.stage_backend(BackendKind::File(config));
+        self.sinks.insert(backend_id, sink);
         Ok(())
     }
 
@@ -216,26 +230,26 @@ impl Logger {
     }
 
     fn ensure_realized_backends(&self) -> Result<(), BuildError> {
-        let missing_specs = {
-            let state = self.lock_state();
-            state.backend_specs[state.realized_backends..].to_vec()
-        };
+        let specs = self.lock_state().backend_specs.clone();
 
-        for spec in missing_specs {
-            let sink = Self::build_sink(&spec)?;
-            self.sinks.push(sink);
-            self.update_state(|state| state.realized_backends += 1);
+        for spec in specs {
+            if self.sinks.contains(spec.id) {
+                continue;
+            }
+
+            let sink = Self::build_sink(&spec.kind)?;
+            self.sinks.insert(spec.id, sink);
         }
 
         Ok(())
     }
 
     #[allow(clippy::unnecessary_wraps)]
-    fn build_sink(spec: &BackendSpec) -> Result<crate::sink::SharedSink, BuildError> {
-        Ok(match spec {
-            BackendSpec::Console => Arc::new(ConsoleSink),
+    fn build_sink(kind: &BackendKind) -> Result<crate::sink::SharedSink, BuildError> {
+        Ok(match kind {
+            BackendKind::Console => Arc::new(ConsoleSink),
             #[cfg(feature = "file")]
-            BackendSpec::File(config) => Arc::new(Self::build_file_sink(config)?),
+            BackendKind::File(config) => Arc::new(Self::build_file_sink(config)?),
         })
     }
 
@@ -245,9 +259,55 @@ impl Logger {
         FileSink::new(config)
     }
 
-    fn update_state(&self, update: impl FnOnce(&mut LoggerState)) {
+    fn set_console_enabled(&self, enabled: bool) {
+        let backend_id = self.update_state(|state| {
+            let console_index = state
+                .backend_specs
+                .iter()
+                .position(|spec| matches!(spec.kind, BackendKind::Console));
+
+            match (enabled, console_index) {
+                (true, Some(index)) => Some(state.backend_specs[index].id),
+                (true, None) => {
+                    let id = state.next_backend_id;
+                    state.next_backend_id += 1;
+                    state.backend_specs.insert(
+                        0,
+                        BackendSpec {
+                            id,
+                            kind: BackendKind::Console,
+                        },
+                    );
+                    Some(id)
+                }
+                (false, Some(index)) => Some(state.backend_specs.remove(index).id),
+                (false, None) => None,
+            }
+        });
+
+        match (enabled, backend_id) {
+            (true, Some(id)) if !self.sinks.contains(id) => {
+                self.sinks.insert(id, Arc::new(ConsoleSink));
+            }
+            (false, Some(id)) => self.sinks.remove(id),
+            _ => {}
+        }
+    }
+
+    // This is used by other cargo features
+    #[allow(unused)]
+    fn stage_backend(&self, kind: BackendKind) -> BackendId {
+        self.update_state(|state| {
+            let id = state.next_backend_id;
+            state.next_backend_id += 1;
+            state.backend_specs.push(BackendSpec { id, kind });
+            id
+        })
+    }
+
+    fn update_state<T>(&self, update: impl FnOnce(&mut LoggerState) -> T) -> T {
         let mut state = self.state.lock();
-        update(&mut state);
+        update(&mut state)
     }
 
     fn lock_state(&self) -> parking_lot::MutexGuard<'_, LoggerState> {

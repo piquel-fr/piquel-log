@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::{collections::BTreeMap, sync::Arc};
 
+use parking_lot::Mutex;
 use time::OffsetDateTime;
 use tracing::{Event, Subscriber};
 use tracing_subscriber::{Layer, layer::Context};
@@ -9,25 +10,29 @@ use crate::{
     sink::{FormatterConfig, SharedSink},
 };
 
+pub(crate) type BackendId = usize;
+
 /// Shared registry of sinks attached to a backend layer.
 #[derive(Default)]
 pub(crate) struct SinkRegistry {
-    sinks: Mutex<Vec<SharedSink>>,
+    sinks: Mutex<BTreeMap<BackendId, SharedSink>>,
 }
 
 impl SinkRegistry {
-    pub(crate) fn push(&self, sink: SharedSink) {
-        match self.sinks.lock() {
-            Ok(mut sinks) => sinks.push(sink),
-            Err(poisoned) => poisoned.into_inner().push(sink),
-        }
+    pub(crate) fn contains(&self, backend_id: BackendId) -> bool {
+        self.sinks.lock().contains_key(&backend_id)
+    }
+
+    pub(crate) fn insert(&self, backend_id: BackendId, sink: SharedSink) {
+        self.sinks.lock().insert(backend_id, sink);
+    }
+
+    pub(crate) fn remove(&self, backend_id: BackendId) {
+        self.sinks.lock().remove(&backend_id);
     }
 
     fn snapshot(&self) -> Vec<SharedSink> {
-        match self.sinks.lock() {
-            Ok(sinks) => sinks.clone(),
-            Err(poisoned) => poisoned.into_inner().clone(),
-        }
+        self.sinks.lock().values().cloned().collect()
     }
 }
 
