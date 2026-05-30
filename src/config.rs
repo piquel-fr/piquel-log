@@ -374,7 +374,7 @@ impl FileConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackendSpec, Logger};
+    use super::{BackendKind, Logger};
     use crate::LogLevel;
 
     #[test]
@@ -387,7 +387,7 @@ mod tests {
         assert!(state.target);
         assert!(state.timestamp);
         assert_eq!(state.backend_specs.len(), 1);
-        assert!(matches!(state.backend_specs[0], BackendSpec::Console));
+        assert!(matches!(state.backend_specs[0].kind, BackendKind::Console));
 
         #[cfg(feature = "log")]
         assert!(!state.log_bridge);
@@ -397,5 +397,20 @@ mod tests {
     fn max_level_is_stored() {
         let logger = Logger::new().with_max_level(LogLevel::Debug);
         assert_eq!(logger.lock_state().max_level, LogLevel::Debug);
+    }
+
+    #[test]
+    fn console_sink_can_be_disabled() {
+        let logger = Logger::new().with_console(false);
+        assert!(logger.lock_state().backend_specs.is_empty());
+    }
+
+    #[test]
+    fn console_sink_can_be_reenabled() {
+        let logger = Logger::new().with_console(false).with_console(true);
+        let state = logger.lock_state();
+
+        assert_eq!(state.backend_specs.len(), 1);
+        assert!(matches!(state.backend_specs[0].kind, BackendKind::Console));
     }
 }

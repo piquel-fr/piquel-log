@@ -23,6 +23,7 @@ fn file_sink_writes_latest_and_session_files() {
     let directory = temp_logs_dir();
     let file = FileConfig::new(&directory).with_session_file_prefix("app");
     let layer = Logger::new()
+        .with_console(false)
         .with_ansi(false)
         .with_file(file)
         .build()
