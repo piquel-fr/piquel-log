@@ -23,6 +23,7 @@ fn init_with_bridge_forwards_log_records() {
     let file = FileConfig::new(&directory).with_session_file_prefix("bridge");
 
     Logger::new()
+        .with_console(false)
         .with_ansi(false)
         .with_file(file)
         .with_log_bridge(true)

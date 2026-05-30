@@ -2,8 +2,9 @@
 //!
 //! `piquel-log` is intended for applications that want a straightforward
 //! way to install a `tracing` backend without exposing a large custom API.
-//! The crate always supports console output and can optionally support file
-//! output and `log` crate interoperability behind Cargo features.
+//! The crate enables console output by default, allows the console sink to be
+//! disabled, and can optionally support file output and `log` crate
+//! interoperability behind Cargo features.
 //!
 //! # Quick start
 //!
@@ -13,6 +14,17 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! Logger::new().init()?;
 //! tracing::info!("hello from tracing");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Disable console output
+//!
+//! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use piquel_log::Logger;
+//!
+//! Logger::new().with_console(false).init()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -57,7 +69,9 @@
 //! # Feature matrix
 //!
 //! - default: console backend only
+//! - `Logger::with_console(false)`: disable the console sink
 //! - `file`: configurable file output
+//! - `Logger::add_file_backend(...)`: add a file backend at runtime
 //! - `log`: explicit `log` to `tracing` bridge during `init`
 //! - `full`: enables `file` and `log`
 //!
@@ -67,6 +81,26 @@
 //! - target allowlists or message filters
 //! - file rotation or retention policies
 //! - exposing individual internal sink/layer types
+//!
+//! # Runtime backend updates
+//!
+//! A [`Logger`] can keep the same backend layer attached while adding new
+//! sinks later. For example, a file backend can be added after startup:
+//!
+//! ```rust
+//! # #[cfg(feature = "file")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use piquel_log::{FileConfig, Logger};
+//!
+//! let logger = Logger::new();
+//! logger.init()?;
+//! logger.add_file_backend(FileConfig::new("logs"))?;
+//! tracing::info!("also written to the file backend");
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "file"))]
+//! # fn main() {}
+//! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -101,14 +135,19 @@ pub use crate::config::FileConfig;
 /// assert!(LogLevel::Debug < LogLevel::Trace);
 /// ```
 ///
-/// This ordering is what powers [`Filter::min_level`]: passing
+/// This ordering is what powers level-threshold filtering: passing
 /// `LogLevel::Warn` keeps `Error` and `Warn` (both ≤ `Warn` in severity).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LogLevel {
+    /// Error conditions that usually require immediate attention.
     Error = 0,
+    /// Warning conditions that may need investigation.
     Warn = 1,
+    /// Normal operational information.
     Info = 2,
+    /// Verbose diagnostic information for development.
     Debug = 3,
+    /// The most detailed diagnostic information.
     Trace = 4,
 }
 

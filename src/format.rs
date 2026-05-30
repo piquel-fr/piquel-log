@@ -3,7 +3,7 @@ use std::fmt;
 use time::OffsetDateTime;
 use tracing::field::{Field, Visit};
 
-use crate::sink::{FormattedEvent, FormatterConfig};
+use crate::sink::FormatterConfig;
 
 const TS_FORMAT: &[time::format_description::BorrowedFormatItem<'static>] =
     time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
@@ -13,7 +13,7 @@ pub(crate) fn format_event(
     event: &tracing::Event<'_>,
     timestamp: OffsetDateTime,
     config: FormatterConfig,
-) -> FormattedEvent {
+) -> String {
     let mut visitor = EventVisitor::default();
     event.record(&mut visitor);
 
@@ -49,7 +49,7 @@ pub(crate) fn format_event(
         line.push_str(&visitor.fields.join(" "));
     }
 
-    FormattedEvent { line }
+    line
 }
 
 fn format_level(level: tracing::Level, ansi: bool) -> String {
@@ -166,7 +166,7 @@ mod tests {
             self.lines
                 .lock()
                 .expect("capture mutex poisoned")
-                .push(rendered.line);
+                .push(rendered);
         }
     }
 

@@ -2,14 +2,15 @@
 
 ## Project Structure & Module Organization
 
-This is a Rust 2024 library crate for initializing `tracing` backends.
-Public exports are defined in `src/lib.rs`. Core configuration lives in
-`src/config.rs`, formatting in `src/format.rs`, subscriber integration in
-`src/layer.rs`, sink traits in `src/sink.rs`, and error types in
-`src/error.rs`. Concrete sinks are under `src/sinks/`, currently
-`console.rs` and feature-gated `file.rs`. Integration tests live in
-`tests/` and are organized by behavior, for example `tests/formatting.rs`
-and `tests/file_output.rs`.
+This is a Rust 2024 library crate for initializing and evolving `tracing`
+backends. Public exports are defined in `src/lib.rs`. Core configuration and
+the public `Logger` handle live in `src/config.rs`; formatting lives in
+`src/format.rs`; subscriber integration plus the shared sink registry live in
+`src/layer.rs`; sink traits and shared sink aliases live in `src/sink.rs`;
+and error types live in `src/error.rs`. Concrete sinks are under
+`src/sinks/`, currently `console.rs` and feature-gated `file.rs`. Integration
+tests live in `tests/` and are organized by behavior, for example
+`tests/formatting.rs`, `tests/file_output.rs`, and `tests/runtime_backends.rs`.
 
 ## Build, Test, and Development Commands
 
