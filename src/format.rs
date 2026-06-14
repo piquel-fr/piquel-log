@@ -14,11 +14,11 @@ pub(crate) fn format_event(
     timestamp: OffsetDateTime,
     config: FormatterConfig,
 ) -> String {
-    let mut visitor = EventVisitor::default();
+    let mut visitor = EventVisitor::new(event_is_bridged_log(event));
     event.record(&mut visitor);
 
     let level = *event.metadata().level();
-    let target = event.metadata().target().to_owned();
+    let target = event_target(event);
     let timestamp = timestamp
         .format(TS_FORMAT)
         .unwrap_or_else(|_| timestamp.to_string());
@@ -52,6 +52,33 @@ pub(crate) fn format_event(
     line
 }
 
+#[cfg(feature = "log")]
+fn event_target(event: &tracing::Event<'_>) -> String {
+    use tracing_log::NormalizeEvent as _;
+
+    event.normalized_metadata().map_or_else(
+        || event.metadata().target().to_owned(),
+        |metadata| metadata.target().to_owned(),
+    )
+}
+
+#[cfg(not(feature = "log"))]
+fn event_target(event: &tracing::Event<'_>) -> String {
+    event.metadata().target().to_owned()
+}
+
+#[cfg(feature = "log")]
+fn event_is_bridged_log(event: &tracing::Event<'_>) -> bool {
+    use tracing_log::NormalizeEvent as _;
+
+    event.is_log()
+}
+
+#[cfg(not(feature = "log"))]
+fn event_is_bridged_log(_event: &tracing::Event<'_>) -> bool {
+    false
+}
+
 fn format_level(level: tracing::Level, ansi: bool) -> String {
     let name = level.to_string();
     if !ansi {
@@ -73,15 +100,34 @@ fn format_level(level: tracing::Level, ansi: bool) -> String {
 struct EventVisitor {
     message: String,
     fields: Vec<String>,
+    skip_log_metadata_fields: bool,
 }
 
 impl EventVisitor {
+    fn new(skip_log_metadata_fields: bool) -> Self {
+        Self {
+            skip_log_metadata_fields,
+            ..Self::default()
+        }
+    }
+
+    fn should_skip_field(&self, field: &Field) -> bool {
+        self.skip_log_metadata_fields && field.name().starts_with("log.")
+    }
+
     fn push_field(&mut self, field: &Field, rendered: String) {
         if field.name() == "message" {
             self.message = rendered;
-        } else {
-            self.fields.push(format!("{}={rendered}", field.name()));
+            return;
         }
+
+        if self.should_skip_field(field) {
+            // `tracing-log` stores non-static log metadata as fields; once the
+            // metadata is normalized, rendering those fields would duplicate it.
+            return;
+        }
+
+        self.fields.push(format!("{}={rendered}", field.name()));
     }
 }
 
@@ -121,9 +167,14 @@ impl Visit for EventVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         if field.name() == "message" && self.message.is_empty() {
             self.message = format!("{value:?}");
-        } else {
-            self.fields.push(format!("{}={value:?}", field.name()));
+            return;
         }
+
+        if self.should_skip_field(field) {
+            return;
+        }
+
+        self.fields.push(format!("{}={value:?}", field.name()));
     }
 }
 

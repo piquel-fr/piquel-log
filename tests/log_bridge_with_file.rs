@@ -30,13 +30,15 @@ fn init_with_bridge_forwards_log_records() {
         .init()
         .expect("init with log bridge should succeed");
 
-    log::warn!("bridged warning");
+    log::warn!(target: "custom_category", "bridged warning");
     log::info!("bridged info");
 
     let latest = directory.join("latest.log");
     let contents = fs::read_to_string(&latest).expect("latest.log should be readable");
 
-    assert!(contents.contains("bridged warning"));
+    assert!(contents.contains("[WARN] custom_category: bridged warning"));
+    assert!(!contents.contains("[WARN] log: bridged warning"));
+    assert!(!contents.contains("log.target"));
     assert!(contents.contains("bridged info"));
 
     let _ = fs::remove_dir_all(directory);
