@@ -1,6 +1,73 @@
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 use time::OffsetDateTime;
 
 use crate::{LogLevel, sink::SinkEvent};
+
+/// Thread-safe append-only in-memory log store.
+///
+/// The store keeps all captured entries in memory until it is dropped. It does
+/// not apply retention, eviction, or size limits.
+#[derive(Clone, Debug, Default)]
+pub struct LogStore {
+    inner: Arc<RwLock<Vec<LogEntry>>>,
+}
+
+impl LogStore {
+    /// Create an empty log store.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return the number of entries currently stored.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.inner.read().len()
+    }
+
+    /// Return `true` when the store contains no entries.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.inner.read().is_empty()
+    }
+
+    /// Return a cloned snapshot of all entries in chronological order.
+    #[must_use]
+    pub fn entries(&self) -> Vec<LogEntry> {
+        self.inner.read().clone()
+    }
+
+    /// Return entries matching `filter`.
+    ///
+    /// Results are cloned snapshots and are returned in chronological order.
+    #[must_use]
+    pub fn query(&self, filter: &LogFilter) -> Vec<LogEntry> {
+        if filter.limit == Some(0) {
+            return Vec::new();
+        }
+
+        let mut entries = self
+            .inner
+            .read()
+            .iter()
+            .filter(|entry| filter.matches(entry))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if let Some(limit) = filter.limit {
+            let keep_from = entries.len().saturating_sub(limit);
+            entries.drain(..keep_from);
+        }
+
+        entries
+    }
+
+    pub(crate) fn push(&self, entry: LogEntry) {
+        self.inner.write().push(entry);
+    }
+}
 
 /// A captured structured log event.
 #[derive(Debug, Clone, PartialEq, Eq)]
