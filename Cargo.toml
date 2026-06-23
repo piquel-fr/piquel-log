@@ -32,13 +32,16 @@ parking_lot = "0.12"
 default = []
 
 # All optional backends
-full = ["file", "log"]
+full = ["file", "log", "store"]
 
 # Save logs to file, configurable at runtime.
 file = []
 
 # Convert `log` events to tracing events.
 log = ["dep:log", "dep:tracing-log"]
+
+# Keep structured logs in a thread-safe in-memory store.
+store = []
 
 [lints.rust]
 unsafe_code = "forbid"

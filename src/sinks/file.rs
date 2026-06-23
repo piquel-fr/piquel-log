@@ -7,7 +7,11 @@ use std::{
 
 use time::OffsetDateTime;
 
-use crate::{config::FileConfig, error::BuildError, sink::Sink};
+use crate::{
+    config::FileConfig,
+    error::BuildError,
+    sink::{Sink, SinkEvent},
+};
 
 const TS_FILE_FORMAT: &[time::format_description::BorrowedFormatItem<'static>] =
     time::macros::format_description!("[year]-[month]-[day]_[hour]-[minute]-[second]");
@@ -76,10 +80,10 @@ impl Sink for FileSink {
         base
     }
 
-    fn write(&self, event: &str) {
+    fn write(&self, event: SinkEvent<'_>) {
         if let Ok(mut writers) = self.writers.lock() {
-            let _ = writeln!(writers.latest, "{event}");
-            let _ = writeln!(writers.session, "{event}");
+            let _ = writeln!(writers.latest, "{}", event.rendered);
+            let _ = writeln!(writers.session, "{}", event.rendered);
         }
     }
 }
