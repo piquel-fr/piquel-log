@@ -91,3 +91,103 @@ impl From<&crate::format::CapturedField> for LogField {
         }
     }
 }
+
+/// Builder-style filter for querying a [`LogStore`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LogFilter {
+    max_level: Option<LogLevel>,
+    target: Option<String>,
+    target_prefix: Option<String>,
+    text: Option<String>,
+    limit: Option<usize>,
+}
+
+impl LogFilter {
+    /// Create an empty filter that matches all entries.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Match entries at or above the provided severity threshold.
+    #[must_use]
+    pub fn with_max_level(mut self, level: LogLevel) -> Self {
+        self.max_level = Some(level);
+        self
+    }
+
+    /// Match entries with exactly this target.
+    #[must_use]
+    pub fn with_target(mut self, target: impl Into<String>) -> Self {
+        self.target = Some(target.into());
+        self
+    }
+
+    /// Match entries whose target starts with this prefix.
+    #[must_use]
+    pub fn with_target_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.target_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Match entries containing this case-sensitive text.
+    ///
+    /// The search checks messages, field names, field values, and rendered
+    /// lines.
+    #[must_use]
+    pub fn containing_text(mut self, text: impl Into<String>) -> Self {
+        self.text = Some(text.into());
+        self
+    }
+
+    /// Keep only the most recent `limit` matches.
+    #[must_use]
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    fn matches(&self, entry: &LogEntry) -> bool {
+        if self
+            .max_level
+            .is_some_and(|max_level| entry.level > max_level)
+        {
+            return false;
+        }
+
+        if self
+            .target
+            .as_ref()
+            .is_some_and(|target| entry.target != *target)
+        {
+            return false;
+        }
+
+        if self
+            .target_prefix
+            .as_ref()
+            .is_some_and(|prefix| !entry.target.starts_with(prefix))
+        {
+            return false;
+        }
+
+        if self
+            .text
+            .as_ref()
+            .is_some_and(|text| !entry_contains_text(entry, text))
+        {
+            return false;
+        }
+
+        true
+    }
+}
+
+fn entry_contains_text(entry: &LogEntry, text: &str) -> bool {
+    entry.message.contains(text)
+        || entry.rendered.contains(text)
+        || entry
+            .fields
+            .iter()
+            .any(|field| field.name.contains(text) || field.value.contains(text))
+}
