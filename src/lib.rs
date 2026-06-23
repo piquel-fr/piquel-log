@@ -110,6 +110,8 @@ mod format;
 mod layer;
 mod sink;
 mod sinks;
+#[cfg(feature = "store")]
+mod store;
 
 use std::fmt;
 
