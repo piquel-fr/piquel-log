@@ -72,12 +72,44 @@
 //! - `Logger::with_console(false)`: disable the console sink
 //! - `file`: configurable file output
 //! - `Logger::add_file_backend(...)`: add a file backend at runtime
+//! - `store`: queryable in-memory log storage
+//! - `Logger::add_store_backend(...)`: add a store backend at runtime
 //! - `log`: explicit `log` to `tracing` bridge during `init`
-//! - `full`: enables `file` and `log`
+//! - `full`: enables `file`, `log`, and `store`
+//!
+//! # Queryable log store
+//!
+//! The `store` feature enables a thread-safe append-only in-memory backend
+//! that captures structured log entries for later querying.
+//!
+//! ```rust
+//! # #[cfg(feature = "store")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use piquel_log::{LogFilter, LogLevel, LogStore, Logger};
+//!
+//! let store = LogStore::new();
+//!
+//! Logger::new()
+//!     .with_console(false)
+//!     .with_store(store.clone())
+//!     .init()?;
+//!
+//! tracing::warn!(target: "app::db", user = "alice", "slow query");
+//!
+//! let entries = store.query(
+//!     &LogFilter::new()
+//!         .with_max_level(LogLevel::Warn)
+//!         .with_target_prefix("app::"),
+//! );
+//! assert_eq!(entries.len(), 1);
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "store"))]
+//! # fn main() {}
+//! ```
 //!
 //! # Non-goals for v0.1
 //!
-//! - query APIs
 //! - target allowlists or message filters
 //! - file rotation or retention policies
 //! - exposing individual internal sink/layer types
@@ -122,6 +154,10 @@ pub use crate::layer::BackendLayer;
 #[cfg(feature = "file")]
 #[cfg_attr(docsrs, doc(cfg(feature = "file")))]
 pub use crate::config::FileConfig;
+
+#[cfg(feature = "store")]
+#[cfg_attr(docsrs, doc(cfg(feature = "store")))]
+pub use crate::store::{LogEntry, LogField, LogFilter, LogStore};
 
 /// Severity level of a log entry.
 ///

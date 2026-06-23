@@ -8,6 +8,7 @@ Small, composable backend initialization for `tracing`.
 - a logger handle that can evolve the backend stack at runtime
 - console output by default, with an option to disable it
 - optional file output behind a feature flag
+- optional queryable in-memory log storage behind a feature flag
 - optional `log` crate interoperability behind a feature flag
 - a single layer that can be attached to an existing `tracing_subscriber` stack
 
@@ -17,8 +18,10 @@ Small, composable backend initialization for `tracing`.
 - `Logger::with_console(false)`: disable the console sink
 - `file`: file output with `latest.log` plus one session file per initialization
 - `Logger::add_file_backend(...)`: add a file sink after initialization
+- `store`: thread-safe append-only in-memory log storage
+- `Logger::add_store_backend(...)`: add a store sink after initialization
 - `log`: explicit `log` to `tracing` bridge during `init`
-- `full`: enables `file` and `log`
+- `full`: enables `file`, `log`, and `store`
 
 ## Quick start
 
@@ -105,6 +108,38 @@ tracing::info!("also written to the runtime file backend");
 # #[cfg(not(feature = "file"))]
 # fn main() {}
 ```
+
+## Queryable log store
+
+```rust
+# #[cfg(feature = "store")]
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use piquel_log::{LogFilter, LogLevel, LogStore, Logger};
+
+let store = LogStore::new();
+
+Logger::new()
+    .with_console(false)
+    .with_store(store.clone())
+    .init()?;
+
+tracing::warn!(target: "app::db", user = "alice", "slow query");
+
+let entries = store.query(
+    &LogFilter::new()
+        .with_max_level(LogLevel::Warn)
+        .with_target_prefix("app::"),
+);
+
+assert_eq!(entries.len(), 1);
+# Ok(())
+# }
+# #[cfg(not(feature = "store"))]
+# fn main() {}
+```
+
+The store is in-memory, append-only, thread-safe, and unbounded. It does not
+apply retention or eviction.
 
 ## `log` crate interoperability
 
