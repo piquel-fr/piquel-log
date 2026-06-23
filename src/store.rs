@@ -44,24 +44,28 @@ impl LogStore {
     /// Results are cloned snapshots and are returned in chronological order.
     #[must_use]
     pub fn query(&self, filter: &LogFilter) -> Vec<LogEntry> {
-        if filter.limit == Some(0) {
-            return Vec::new();
+        let entries = self.inner.read();
+        match filter.limit {
+            Some(0) => Vec::new(),
+            Some(limit) => {
+                let mut recent = Vec::with_capacity(limit.min(entries.len()));
+                for entry in entries.iter().rev() {
+                    if filter.matches(entry) {
+                        recent.push(entry.clone());
+                        if recent.len() == limit {
+                            break;
+                        }
+                    }
+                }
+                recent.reverse();
+                recent
+            }
+            None => entries
+                .iter()
+                .filter(|entry| filter.matches(entry))
+                .cloned()
+                .collect(),
         }
-
-        let mut entries = self
-            .inner
-            .read()
-            .iter()
-            .filter(|entry| filter.matches(entry))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        if let Some(limit) = filter.limit {
-            let keep_from = entries.len().saturating_sub(limit);
-            entries.drain(..keep_from);
-        }
-
-        entries
     }
 
     pub(crate) fn push(&self, entry: LogEntry) {
