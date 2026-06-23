@@ -14,6 +14,9 @@ use crate::{
 #[cfg(feature = "file")]
 use crate::sinks::file::{FileSink, validate_file_config};
 
+#[cfg(feature = "store")]
+use crate::{sinks::store::StoreSink, store::LogStore};
+
 /// If you want to add a backend to the library, add it to this enum.
 /// The compiler will tell you what you need to updated.
 #[derive(Debug, Clone)]
@@ -21,6 +24,8 @@ enum BackendKind {
     Console,
     #[cfg(feature = "file")]
     File(FileConfig),
+    #[cfg(feature = "store")]
+    Store(LogStore),
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +96,7 @@ impl Logger {
     /// - timestamps: enabled
     /// - targets: enabled
     /// - file output: disabled
+    /// - store output: disabled
     /// - `log` bridge: disabled
     #[must_use]
     pub fn new() -> Self {
@@ -160,6 +166,28 @@ impl Logger {
         let backend_id = self.stage_backend(BackendKind::File(config));
         self.sinks.insert(backend_id, sink);
         Ok(())
+    }
+
+    /// Stage an in-memory store backend so the next [`Self::build`] or
+    /// [`Self::init`] includes it in the active backend stack.
+    #[cfg(feature = "store")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "store")))]
+    #[must_use]
+    pub fn with_store(self, store: LogStore) -> Self {
+        self.stage_backend(BackendKind::Store(store));
+        self
+    }
+
+    /// Add an in-memory store backend to the active backend stack.
+    ///
+    /// The backend starts receiving events immediately after this method
+    /// succeeds.
+    #[cfg(feature = "store")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "store")))]
+    pub fn add_store_backend(&self, store: LogStore) {
+        let sink = Arc::new(StoreSink::new(store.clone()));
+        let backend_id = self.stage_backend(BackendKind::Store(store));
+        self.sinks.insert(backend_id, sink);
     }
 
     /// Enable or disable forwarding `log` records as `tracing` events during
@@ -250,6 +278,8 @@ impl Logger {
             BackendKind::Console => Arc::new(ConsoleSink),
             #[cfg(feature = "file")]
             BackendKind::File(config) => Arc::new(Self::build_file_sink(config)?),
+            #[cfg(feature = "store")]
+            BackendKind::Store(store) => Arc::new(StoreSink::new(store.clone())),
         })
     }
 
