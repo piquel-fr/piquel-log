@@ -3,27 +3,53 @@ use std::fmt;
 use time::OffsetDateTime;
 use tracing::field::{Field, Visit};
 
-use crate::sink::FormatterConfig;
+use crate::{LogLevel, sink::FormatterConfig};
 
 const TS_FORMAT: &[time::format_description::BorrowedFormatItem<'static>] =
     time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
-/// Render a tracing event into its final output form.
-pub(crate) fn format_event(
+/// Structured data captured from a tracing event before sink-specific rendering.
+#[derive(Debug, Clone)]
+pub(crate) struct CapturedEvent {
+    pub(crate) timestamp: OffsetDateTime,
+    pub(crate) level: LogLevel,
+    pub(crate) target: String,
+    pub(crate) message: String,
+    pub(crate) fields: Vec<CapturedField>,
+}
+
+/// Structured field captured from a tracing event.
+#[derive(Debug, Clone)]
+pub(crate) struct CapturedField {
+    pub(crate) name: String,
+    pub(crate) value: String,
+}
+
+/// Capture structured event data from a tracing event.
+pub(crate) fn capture_event(
     event: &tracing::Event<'_>,
     timestamp: OffsetDateTime,
-    config: FormatterConfig,
-) -> String {
+) -> CapturedEvent {
     let mut visitor = EventVisitor::new(event_is_bridged_log(event));
     event.record(&mut visitor);
 
-    let level = *event.metadata().level();
-    let target = event_target(event);
-    let timestamp = timestamp
-        .format(TS_FORMAT)
-        .unwrap_or_else(|_| timestamp.to_string());
+    CapturedEvent {
+        timestamp,
+        level: LogLevel::from(event.metadata().level()),
+        target: event_target(event),
+        message: visitor.message,
+        fields: visitor.fields,
+    }
+}
 
-    let level = format_level(level, config.ansi);
+/// Render captured event data into its final output form.
+pub(crate) fn render_event(event: &CapturedEvent, config: FormatterConfig) -> String {
+    let timestamp = event
+        .timestamp
+        .format(TS_FORMAT)
+        .unwrap_or_else(|_| event.timestamp.to_string());
+
+    let level = format_level(event.level, config.ansi);
     let mut line = String::new();
 
     if config.timestamp {
@@ -35,18 +61,25 @@ pub(crate) fn format_event(
 
     if config.target {
         line.push(' ');
-        line.push_str(&target);
+        line.push_str(&event.target);
         line.push(':');
     }
 
-    if !visitor.message.is_empty() {
+    if !event.message.is_empty() {
         line.push(' ');
-        line.push_str(&visitor.message);
+        line.push_str(&event.message);
     }
 
-    if !visitor.fields.is_empty() {
+    if !event.fields.is_empty() {
         line.push(' ');
-        line.push_str(&visitor.fields.join(" "));
+        line.push_str(
+            &event
+                .fields
+                .iter()
+                .map(|field| format!("{}={}", field.name, field.value))
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
     }
 
     line
@@ -79,18 +112,18 @@ fn event_is_bridged_log(_event: &tracing::Event<'_>) -> bool {
     false
 }
 
-fn format_level(level: tracing::Level, ansi: bool) -> String {
+fn format_level(level: LogLevel, ansi: bool) -> String {
     let name = level.to_string();
     if !ansi {
         return format!("[{name}]");
     }
 
     let code = match level {
-        tracing::Level::ERROR => 31,
-        tracing::Level::WARN => 33,
-        tracing::Level::INFO => 32,
-        tracing::Level::DEBUG => 34,
-        tracing::Level::TRACE => 36,
+        LogLevel::Error => 31,
+        LogLevel::Warn => 33,
+        LogLevel::Info => 32,
+        LogLevel::Debug => 34,
+        LogLevel::Trace => 36,
     };
 
     format!("[\x1b[{code}m{name}\x1b[0m]")
@@ -99,7 +132,7 @@ fn format_level(level: tracing::Level, ansi: bool) -> String {
 #[derive(Default)]
 struct EventVisitor {
     message: String,
-    fields: Vec<String>,
+    fields: Vec<CapturedField>,
     skip_log_metadata_fields: bool,
 }
 
@@ -127,7 +160,10 @@ impl EventVisitor {
             return;
         }
 
-        self.fields.push(format!("{}={rendered}", field.name()));
+        self.fields.push(CapturedField {
+            name: field.name().to_owned(),
+            value: rendered,
+        });
     }
 }
 
@@ -174,7 +210,10 @@ impl Visit for EventVisitor {
             return;
         }
 
-        self.fields.push(format!("{}={value:?}", field.name()));
+        self.fields.push(CapturedField {
+            name: field.name().to_owned(),
+            value: format!("{value:?}"),
+        });
     }
 }
 
@@ -186,8 +225,20 @@ mod tests {
     use tracing::{Event, Subscriber};
     use tracing_subscriber::{Layer, layer::Context, prelude::*};
 
-    use super::format_event;
-    use crate::sink::FormatterConfig;
+    use crate::{
+        format::{capture_event, render_event},
+        sink::FormatterConfig,
+    };
+
+    /// Render a tracing event into its final output form.
+    #[cfg(test)]
+    pub(crate) fn format_event(
+        event: &tracing::Event<'_>,
+        timestamp: OffsetDateTime,
+        config: FormatterConfig,
+    ) -> String {
+        render_event(&capture_event(event, timestamp), config)
+    }
 
     #[derive(Clone)]
     struct CaptureLayer {
